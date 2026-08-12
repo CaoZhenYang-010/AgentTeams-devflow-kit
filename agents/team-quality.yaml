@@ -1,0 +1,18 @@
+apiVersion: agentteams.io/v1beta1
+kind: Team
+metadata:
+  name: quality-team
+spec:
+  description: 质量门禁团队：quality-leader 把关发布，implementer/tester/reviewer/analyst 执行
+  heartbeatEvery: 30m
+  workerMembers:
+    - name: quality-leader
+      role: team_leader
+    - name: implementer
+      role: worker
+    - name: tester
+      role: worker
+    - name: reviewer
+      role: worker
+    - name: analyst
+      role: worker

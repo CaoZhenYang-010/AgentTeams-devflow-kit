@@ -1,0 +1,24 @@
+# DevFlow Worker 自定义镜像 —— 在官方 worker 基础上加 Java 17 + Maven + Playwright
+# 用途：让 implementer / tester / analyst 能在容器内跑 mvn test / Playwright E2E
+FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/agentteams/agentteams-worker:latest
+
+USER root
+
+# 1. Java 17 + Maven + MySQL 8.0（SpringBoot 2.7 + 数据库）
+#    注意：mysql 用显式包名 mysql-server-8.0，且不能用 --no-install-recommends（否则不装真正的 server）
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      openjdk-17-jdk \
+      maven \
+      mysql-server-8.0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Playwright + Chromium（含浏览器系统依赖）
+RUN npx --yes playwright install chromium --with-deps || true
+
+# 3. 环境变量
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+# 4. 可选：启动时安装额外依赖的钩子（以后加 Python 库 / npm 包时，改这个脚本即可，不用重建镜像）
+# COPY install-extra.sh /usr/local/bin/install-extra.sh
+# RUN chmod +x /usr/local/bin/install-extra.sh

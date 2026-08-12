@@ -1,0 +1,4 @@
+# 补丁：在当前 devflow-worker（已有 Java/Maven/Playwright）上加 MySQL 8.0
+FROM devflow-worker:latest
+USER root
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server-8.0 && rm -rf /var/lib/apt/lists/*

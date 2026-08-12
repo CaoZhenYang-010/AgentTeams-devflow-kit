@@ -1,0 +1,68 @@
+# ===== 敏感信息（绝不提交）=====
+.env
+.env.*
+*.pem
+*.key
+!*.example
+secrets/
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== IDE / 编辑器 =====
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ===== Java / Maven（backend）=====
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===== Node / Vue（frontend）=====
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 测试产物 =====
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== DevFlow 运行产物 =====
+work/
+trace.log
+*.vhdx
+
+# ===== 大文件 / 杂项 =====
+*.zip
+*.tar.gz
+*.tmp
+MIGRATION-NOTES.md

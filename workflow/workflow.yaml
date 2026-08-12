@@ -1,0 +1,94 @@
+# AgentTeams DevFlow Kit —— 声明式流水线（AgentTeams 版）
+# devflow-runner 读取本文件，按序派发给对应 Worker/Team Leader 执行。
+# 节点字段：
+#   id     节点标识（全局唯一）
+#   worker  执行该节点的 Agent（devflow-runner 派发的目标）
+#   skill   该节点使用的 Skill 名
+#   fail_to 失败时回流到的节点（可选）
+# 工程基底来自 stack-template（backend + frontend），运行时放在 shared/projects/{project-id}/work/。
+
+pipeline:
+  # 1. 需求澄清：devflow-runner 把一句话需求拆解为任务说明 + 验收标准
+  - id: requirement
+    worker: devflow-runner
+    skill: requirement-clarify
+    input: task
+
+  # 2. 系统设计：designer 产出设计文档（前后端模块划分/接口契约/边界处理）
+  - id: design
+    worker: designer
+    skill: system-design
+    requires: [task.md]
+
+  # 3. 架构 Leader：编码前架构把关，不过则回流 design
+  - id: architect-leader
+    worker: architect-leader
+    skill: architecture-review
+    requires: [task.md, design.md]
+    fail_to: design
+
+  # 4. 后端编码：implementer 基于模板生成 SpringBoot 业务代码 + JUnit 测试
+  - id: backend-coding
+    worker: implementer
+    skill: tdd-coding
+    requires: [task.md, design.md]
+
+  # 5. 后端测试：tester 真实运行 mvn test + JaCoCo 覆盖率，失败 → 缺陷定位
+  - id: backend-test
+    worker: tester
+    skill: test-run
+    fail_to: defect-locate
+
+  # 6. 前端编码：implementer 基于模板生成 Vue3 业务组件 + API 封装
+  - id: frontend-coding
+    worker: implementer
+    skill: tdd-coding
+    requires: [task.md, design.md]
+
+  # 7. 前端构建：tester 真实运行 npm install + npm run build，失败 → 缺陷定位
+  - id: frontend-build
+    worker: tester
+    skill: test-run
+    fail_to: defect-locate
+
+  # 8. 评审：reviewer 审查设计落地与业务规则，不通过则先走缺陷定位
+  - id: review
+    worker: reviewer
+    skill: code-review
+    requires: [task.md, design.md]
+    fail_to: defect-locate
+
+  # 9. 独立对抗性测试：analyst 基于验收标准生成攻击用例，对抗自写测试盲区
+  - id: adversarial-test
+    worker: analyst
+    skill: adversarial-test
+    fail_to: defect-locate
+
+  # 10. 缺陷自动定位：有失败证据时定位到文件/行/函数，产出定位报告后回流
+  - id: defect-locate
+    worker: analyst
+    skill: defect-locate
+
+  # 11. 影响面分析：发布前扫描前后端结构，程序化产出受影响范围与回归建议
+  - id: impact-analysis
+    worker: analyst
+    skill: impact-analysis
+
+  # 12. E2E：启动 SpringBoot+Vite，Playwright 真实浏览器断言「输入→计算→展示」闭环
+  - id: e2e
+    worker: tester
+    skill: test-run
+    fail_to: defect-locate
+
+  # 13. 质量 Leader：发布前质量门禁，不过则回流缺陷定位
+  - id: quality-leader
+    worker: quality-leader
+    skill: quality-gate
+    fail_to: defect-locate
+
+  # 14. 发布：全部通过后 git commit，沉淀执行证据
+  - id: release
+    worker: devflow-runner
+    skill: verify-release
+
+max_iterations: 30        # 防死循环保护

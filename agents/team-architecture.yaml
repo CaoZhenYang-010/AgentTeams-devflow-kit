@@ -1,0 +1,12 @@
+apiVersion: agentteams.io/v1beta1
+kind: Team
+metadata:
+  name: architecture-team
+spec:
+  description: 架构设计团队：architect-leader 把关设计，designer 产出设计文档
+  heartbeatEvery: 30m
+  workerMembers:
+    - name: architect-leader
+      role: team_leader
+    - name: designer
+      role: worker
