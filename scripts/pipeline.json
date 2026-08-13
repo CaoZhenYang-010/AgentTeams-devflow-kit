@@ -1,5 +1,5 @@
 {
-  "project_root": "/root/agentteams-fs/shared/projects/devflow-vat",
+  "project_root": "/root/agentteams-fs/shared/projects/devflow-bmi",
   "admin_user": "admin",
   "nodes": [
     {
@@ -24,9 +24,9 @@
     {
       "id": "backend-coding",
       "worker": "implementer",
-      "artifact": "backend/src/main/java/com/example/app/controller/VatController.java",
+      "artifact": "backend/src/main/java/com/example/app/controller/BmiController.java",
       "timeout": 600,
-      "prompt": "请基于 {ROOT}/design.md 实现后端功能。实现 VatController.java（GET /api/vat/calculate）和对应 service，严格按设计文档模块划分实现，严格按业务规则顺序计算，金额用 BigDecimal、先 setScale(2) 再相加，明细之和等于最终运费。写 JUnit 测试覆盖正数/负数/零/空/临界值/加价/折扣/最低价。确保 mvn test 全部通过。文件写到 backend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请基于 {ROOT}/design.md 实现后端功能。实现 BmiController.java（GET /api/bmi/calculate）和对应 service，严格按设计文档模块划分实现，严格按业务规则顺序计算，金额用 BigDecimal、先 setScale(2) 再相加，明细之和等于最终运费。写 JUnit 测试覆盖正数/负数/零/空/临界值/加价/折扣/最低价。确保 mvn test 全部通过。文件写到 backend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
     },
     {
       "id": "backend-test",
@@ -42,9 +42,9 @@
     {
       "id": "frontend-coding",
       "worker": "implementer",
-      "artifact": "frontend/src/views/VatCalc.vue",
+      "artifact": "frontend/src/views/BmiCalc.vue",
       "timeout": 600,
-      "prompt": "请基于 {ROOT}/design.md 实现前端 Vue3：src/views/VatCalc.vue（表单输入+计算+结果明细）、src/api/vat.js（封装 POST /api/vat/calculate）、修改 App.vue 挂载。金额两位小数，Element Plus，接口契约按 design.md。确保 npm run build 通过。文件写到 frontend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请基于 {ROOT}/design.md 实现前端 Vue3：src/views/BmiCalc.vue（表单输入+计算+结果明细）、src/api/bmi.js（封装 POST /api/bmi/calculate）、修改 App.vue 挂载。金额两位小数，Element Plus，接口契约按 design.md。确保 npm run build 通过。文件写到 frontend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
     },
     {
       "id": "frontend-build",
@@ -54,8 +54,11 @@
       "fail_to": "defect-locate",
       "prompt": "请用 test-run 这个 skill，对 {ROOT}/frontend/ 执行 npm install 和 npm run build，确认构建成功，把结果写成 frontend_build_report.txt。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
       "success": [
+        "构建成功",
         "构建通过",
-        "BUILD SUCCESS"
+        "BUILD SUCCESS",
+        "built in",
+        "无错误"
       ]
     },
     {
@@ -105,7 +108,9 @@
       "success": [
         "全部通过",
         "passed",
-        "Passed"
+        "Passed",
+        "通过",
+        "PASSED"
       ]
     },
     {
