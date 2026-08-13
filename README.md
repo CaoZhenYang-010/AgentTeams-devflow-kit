@@ -50,8 +50,8 @@ AgentTeams-devflow-kit/
 ./scripts/run.sh "开发一个运费计费引擎：……"
 ```
 
-详见 `docs/复现步骤.md`。
+详见 `docs/agentTeams调试步骤.md`。
 
-## 迁移说明
+## 参考文档
 
-本包由 `devflow-demo`（自研 Python 编排引擎）迁移而来，迁移映射见 `MIGRATION-NOTES.md`。
+1.AgentTeams框架官方仓库：https://github.com/agentscope-ai/AgentTeams/tree/main
