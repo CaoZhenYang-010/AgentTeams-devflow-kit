@@ -12,12 +12,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
       mysql-server-8.0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Playwright + Chromium（含浏览器系统依赖）
-RUN npx --yes playwright install chromium --with-deps || true
+# 2. Playwright + Chromium（按项目版本 @playwright/test@1.61.0 → chromium-1228）
+RUN npm install -g @playwright/test@1.61.0 \
+    && npx playwright install chromium --with-deps \
+    && rm -rf /root/.npm 2>/dev/null || true
 
 # 3. 环境变量
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PATH="$JAVA_HOME/bin:$PATH"
+# 固定 Playwright 浏览器路径，避免 worker HOME 变化导致找不到内置浏览器
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
 # 4. 可选：启动时安装额外依赖的钩子（以后加 Python 库 / npm 包时，改这个脚本即可，不用重建镜像）
 # COPY install-extra.sh /usr/local/bin/install-extra.sh
