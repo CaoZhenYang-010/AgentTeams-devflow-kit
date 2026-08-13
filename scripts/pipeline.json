@@ -1,0 +1,131 @@
+{
+  "project_root": "/root/agentteams-fs/shared/projects/devflow-vat",
+  "admin_user": "admin",
+  "nodes": [
+    {
+      "id": "design",
+      "worker": "designer",
+      "artifact": "design.md",
+      "timeout": 300,
+      "prompt": "请为模板工程 {ROOT}/ 设计一个「{REQ}」功能：{RULES}。请产出设计文档 design.md，包含：模块划分、数据结构、核心流程、接口契约（/api/**）、边界处理。写入共享区。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+    },
+    {
+      "id": "architect-leader",
+      "worker": "architect-leader",
+      "artifact": "arch_review.md",
+      "timeout": 300,
+      "fail_to": "design",
+      "prompt": "请评审 {ROOT}/design.md 这份系统设计文档。检查：模块划分是否合理、数据结构/接口是否覆盖验收标准、核心流程是否完整、边界处理是否周全。将评审结果以 JSON 写入 {ROOT}/arch_review.md，同时回复 JSON：{\"approved\": true|false, \"issues\": \"...\"}。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "approved\": true",
+        "approved: true"
+      ]
+    },
+    {
+      "id": "backend-coding",
+      "worker": "implementer",
+      "artifact": "backend/src/main/java/com/example/app/controller/VatController.java",
+      "timeout": 600,
+      "prompt": "请基于 {ROOT}/design.md 实现后端功能。实现 VatController.java（GET /api/vat/calculate）和对应 service，严格按设计文档模块划分实现，严格按业务规则顺序计算，金额用 BigDecimal、先 setScale(2) 再相加，明细之和等于最终运费。写 JUnit 测试覆盖正数/负数/零/空/临界值/加价/折扣/最低价。确保 mvn test 全部通过。文件写到 backend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+    },
+    {
+      "id": "backend-test",
+      "worker": "tester",
+      "artifact": "backend/test_report.txt",
+      "timeout": 600,
+      "fail_to": "defect-locate",
+      "prompt": "请用 test-run 这个 skill，对 {ROOT}/backend/ 执行 mvn test，确认测试全部通过（BUILD SUCCESS、Failures: 0、Errors: 0），把结果写成 test_report.txt。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "BUILD SUCCESS"
+      ]
+    },
+    {
+      "id": "frontend-coding",
+      "worker": "implementer",
+      "artifact": "frontend/src/views/VatCalc.vue",
+      "timeout": 600,
+      "prompt": "请基于 {ROOT}/design.md 实现前端 Vue3：src/views/VatCalc.vue（表单输入+计算+结果明细）、src/api/vat.js（封装 POST /api/vat/calculate）、修改 App.vue 挂载。金额两位小数，Element Plus，接口契约按 design.md。确保 npm run build 通过。文件写到 frontend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+    },
+    {
+      "id": "frontend-build",
+      "worker": "tester",
+      "artifact": "frontend/frontend_build_report.txt",
+      "timeout": 600,
+      "fail_to": "defect-locate",
+      "prompt": "请用 test-run 这个 skill，对 {ROOT}/frontend/ 执行 npm install 和 npm run build，确认构建成功，把结果写成 frontend_build_report.txt。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "构建通过",
+        "BUILD SUCCESS"
+      ]
+    },
+    {
+      "id": "review",
+      "worker": "reviewer",
+      "artifact": "review_notes.md",
+      "timeout": 300,
+      "fail_to": "defect-locate",
+      "prompt": "请用 code-review 这个 skill，审查 {ROOT}/ 的全栈实现，对照 design.md。重点：规则正确性、设计落地、前后端接口一致、测试充分性。将评审结果以 JSON 写入 {ROOT}/review_notes.md，同时回复 JSON：{\"approved\": true|false, \"issues\": \"...\"}。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "approved\": true",
+        "approved: true"
+      ]
+    },
+    {
+      "id": "adversarial-test",
+      "worker": "analyst",
+      "artifact": "backend/adversarial_test_report.txt",
+      "timeout": 900,
+      "fail_to": "defect-locate",
+      "prompt": "请用 adversarial-test 这个 skill，对运费计算后端做独立对抗性测试：不参考、不复制 implementer 自写测试，只依据验收标准独立构造攻击性 JUnit 用例（边界值、非法输入、规则组合、精度），真实运行 mvn test。输出 adversarial_test_report.txt。若暴露缺陷如实报告。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "Failures: 0"
+      ]
+    },
+    {
+      "id": "defect-locate",
+      "worker": "analyst",
+      "artifact": "defect_report.md",
+      "timeout": 300,
+      "prompt": "请把对抗测试暴露的缺陷整理成 defect_report.md：candidates（文件/行/函数）、root_cause、evidence、fix_suggestion。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+    },
+    {
+      "id": "impact-analysis",
+      "worker": "analyst",
+      "artifact": "impact_report.md",
+      "timeout": 300,
+      "prompt": "请用 impact-analysis 这个 skill，对改动做影响面分析：扫描 backend/frontend 源码结构，产出 impact_report.md（模块清单、受影响范围、建议回归范围）。程序化产出。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+    },
+    {
+      "id": "e2e",
+      "worker": "tester",
+      "artifact": "frontend/e2e_report.txt",
+      "timeout": 900,
+      "fail_to": "defect-locate",
+      "prompt": "请用 test-run skill 执行全栈 E2E：启动 backend（mvn spring-boot:run）和 frontend（npm run dev），用 Playwright 真实浏览器测试运费计算页面：打开页面→输入里程/重量/服务等级→点击计算→断言明细与最终运费。输出 e2e_report.txt 与截图。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "全部通过",
+        "passed",
+        "Passed"
+      ]
+    },
+    {
+      "id": "quality-leader",
+      "worker": "quality-leader",
+      "artifact": "quality_notes.md",
+      "timeout": 300,
+      "fail_to": "defect-locate",
+      "prompt": "请用 quality-gate 这个 skill 做发布前质量门禁复核：审查 test_report.txt、frontend_build_report.txt、adversarial_test_report.txt、e2e_report.txt、impact_report.md。若报告未更新先执行 agentteams-sync 拉最新。确认全部真实通过后将门禁结果以 JSON 写入 {ROOT}/quality_notes.md，同时回复 JSON：{\"approved\": true|false, \"issues\": \"...\"}。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "success": [
+        "approved\": true",
+        "approved: true"
+      ]
+    },
+    {
+      "id": "release",
+      "worker": "devflow-runner",
+      "artifact": "RELEASE_DONE",
+      "timeout": 300,
+      "prompt": "请用 verify-release 这个 skill 执行发布：在 {ROOT}/ 下执行 git init（如未初始化）、git add .、git commit -m \"devflow: {REQ} [ci pass]\"。若未配置 git 身份自动补。"
+    }
+  ]
+}

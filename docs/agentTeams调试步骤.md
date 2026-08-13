@@ -588,7 +588,90 @@ docker build -f Dockerfile.worker -t devflow-worker:latest .
 
 ---
 
-## 十一、日常启动方法（以后重启电脑）
+## 十一、全自动流水线驱动（run-pipeline.py）
+
+> 用脚本自动给各 Worker 发消息（Matrix API）+ 轮询 MinIO 判断节点完成 + 内容校验 + 自动推进/回流，实现"发一个需求 → 流水线自动跑完"。
+> 实测：运费计算、增值税计算两个功能的 1-5 节点均**全自动通过**。
+
+### 11.1 文件位置
+
+| 文件 | 说明 |
+|------|------|
+| `AgentTeams-devflow-kit/scripts/run-pipeline.py` | 驱动脚本（运行在 controller 容器内）|
+| `AgentTeams-devflow-kit/scripts/pipeline.json` | 流水线定义（节点/worker/产物/提示语/fail_to）|
+
+### 11.2 用法
+
+```bash
+# 复制到挂载点（controller 可见）
+cp scripts/run-pipeline.py scripts/pipeline.json ~/agentteams-manager/
+
+# 在 controller 容器内运行
+docker exec agentteams-controller bash -c 'cd /root/agentteams-fs/agents/manager && \
+  PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" \
+  --rules "业务规则" [--max-nodes N] [--dry-run]'
+```
+
+### 11.3 工作原理
+
+```
+读 pipeline.json → 获取 admin token + 各 Worker 房间
+→ 对每个节点：给 Worker 房间发提示语（真提及格式）→ 轮询 MinIO 等产物
+→ 内容校验（BUILD SUCCESS / approved / Failures: 0）→ 通过推进 / 失败按 fail_to 回流
+→ 直到 release
+```
+
+### 11.4 pipeline.json 配置要点
+
+| 字段 | 说明 |
+|------|------|
+| `project_root` | 容器内项目路径（如 `/root/agentteams-fs/shared/projects/devflow-vat`）|
+| `nodes[].worker` | 目标 Worker 名 |
+| `nodes[].artifact` | 检测该节点完成的产物文件（相对 project_root）|
+| `nodes[].prompt` | 发给 Worker 的提示语（`{ROOT}`/`{REQ}`/`{RULES}` 占位符）|
+| `nodes[].fail_to` | 失败时回流的节点 |
+| `nodes[].success` | 产物内容含这些关键词才算通过（如 `BUILD SUCCESS`）|
+
+> ⚠️ 换需求时：**新建项目目录**（如 devflow-vat），改 `project_root` 和产物名（如 `VatController.java`/`VatCalc.vue`），避免 Worker 记忆旧功能。
+
+### 11.5 ⚠️ 三个关键坑（解决了才跑通）
+
+**坑 1：@mention 格式（最关键）**
+
+发消息必须带 `format: org.matrix.custom.html` + `formatted_body`（permalink 链接）+ `m.mentions.user_ids`，否则 Worker 不识别为"真提及"、不会处理：
+
+```json
+{
+  "msgtype": "m.text",
+  "body": "@worker:server 指令",
+  "format": "org.matrix.custom.html",
+  "formatted_body": "<a href=\"https://matrix.to/#/@worker:server\">@worker:server</a> 指令",
+  "m.mentions": {"user_ids": ["@worker:server"]}
+}
+```
+
+- ❌ 只写 `@worker:server`（纯文本）→ 收不到
+- ❌ 手打 `@@worker:server` → 双@ 不是真提及
+- ✅ 必须带 `m.mentions.user_ids` + `formatted_body` permalink
+
+**坑 2：产物同步到 MinIO**
+
+Worker 写了文件不一定自动同步到 MinIO。提示语里必须加：**"产出文件后必须用 file-sync / agentteams-sync 同步到 MinIO 共享区"**，否则驱动轮询不到。
+
+**坑 3：换需求要新项目目录**
+
+Worker 有"记忆"（会话/工作区），换需求要建新项目目录（如 `devflow-vat`），否则它认为"上轮已完成"不重新开发。
+
+### 11.6 实测结果
+
+| 需求 | 节点 | 结果 |
+|------|------|------|
+| 运费计算（freight）| 1-5（design→architect→backend-coding→backend-test→frontend-coding）| ✅ 全过（57 测试）|
+| 增值税计算（VAT）| 1-5（全新需求）| ✅ 全过（74 测试，全新 VatController/VatCalc）|
+
+---
+
+## 十二、日常启动方法（以后重启电脑）
 
 ```
 1. 启动 Docker Desktop（AutoStart 默认关，需手动开）
@@ -599,7 +682,7 @@ docker build -f Dockerfile.worker -t devflow-worker:latest .
 
 ---
 
-## 十二、常用命令速查
+## 十三、常用命令速查
 
 | 需求 | 命令 |
 |------|------|
@@ -614,7 +697,7 @@ docker build -f Dockerfile.worker -t devflow-worker:latest .
 
 ---
 
-## 十三、常见问题排查
+## 十四、常见问题排查
 
 | 现象 | 原因 | 解决 |
 |------|------|------|
