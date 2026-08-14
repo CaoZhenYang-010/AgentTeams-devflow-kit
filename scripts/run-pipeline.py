@@ -14,9 +14,27 @@ import json, subprocess, sys, time, urllib.parse, uuid, os
 
 MATRIX = "http://127.0.0.1:6167"
 MC_ALIAS = "agentteams/agentteams-storage"
-# Manager 的 DM 房间（admin 与 manager 两人），流水线完成后发通知用
-MANAGER_ROOM = "!KE8nTiYPVq3nn0rMUC:matrix-local.agentteams.io:18080"
 CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline.json")
+
+
+def get_manager_room(token):
+    """动态发现 admin 与 manager 的 DM 房间（含 @manager 的小房间）。换电脑也适用。"""
+    import urllib.parse as up
+    r = sh("curl", "-s", f"{MATRIX}/_matrix/client/v3/joined_rooms",
+           "-H", f"Authorization: Bearer {token}")
+    rooms = json.loads(r.stdout).get("joined_rooms", [])
+    found = []
+    for room in rooms:
+        enc = up.quote(room, safe="")
+        mr = sh("curl", "-s", f"{MATRIX}/_matrix/client/v3/rooms/{enc}/joined_members",
+                "-H", f"Authorization: Bearer {token}")
+        members = json.loads(mr.stdout).get("joined", {})
+        ids = list(members.keys())
+        if any("manager" in u for u in ids) and len(ids) <= 3:
+            found.append((len(ids), room))
+    # 优先返回 2 人纯 DM（admin+manager），否则返回任意含 manager 的小房间
+    found.sort(key=lambda x: x[0])
+    return found[0][1] if found else None
 
 def _load_admin_pass():
     """从同目录 .env 读取管理员密码（.env 不提交，留在本地）。"""
@@ -207,12 +225,19 @@ def main():
     print("\n[流水线] 全部节点完成 ✅")
     print(f"产物在: {root}")
 
-    # 通知 Manager：流水线完成 + 通过节点数
+    # 通知 Manager：流水线完成 + 通过节点数（可选步骤，失败不影响已完成的流水线结果）
     notify = (f"流水线执行完成：共 {passed_count}/{len(nodes)} 个节点通过。"
               f"需求「{req[:40]}」，产物在 {root}。")
     if not dry_run:
-        send_message(token, MANAGER_ROOM, notify)
-    print(f"[通知] 已发送给 Manager: {notify}")
+        try:
+            mgr_room = get_manager_room(token)
+            if mgr_room:
+                send_message(token, mgr_room, notify)
+                print(f"[通知] 已发送给 Manager: {notify}")
+            else:
+                print(f"[通知] 未找到 Manager DM 房间，跳过通知")
+        except Exception as e:
+            print(f"[通知] 发送失败（不影响流水线结果）: {e}")
 
 
 def handle_failure(node, token, rooms, users, root, node_map, req, rules):
