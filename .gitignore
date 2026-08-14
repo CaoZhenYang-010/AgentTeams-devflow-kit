@@ -65,3 +65,7 @@ trace.log
 *.zip
 *.tar.gz
 *.tmp
+
+# PPT 演示文件（本地生成，不提交）
+*.ppt
+*.pptx
