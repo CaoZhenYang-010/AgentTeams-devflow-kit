@@ -26,7 +26,7 @@ AgentTeams-devflow-kit/
 ├── docker/                   # 自定义 Worker 镜像（Java+Maven+MySQL+Playwright）
 ├── template-project/         # 被开发的全栈工程模板（含 JaCoCo 覆盖率）
 ├── screenshots/              # 流水线运行截图 + description
-└── docs/                     # 架构说明 + 调试手册
+└── docs/                     # 架构 / 调试手册 / Identity 清单 / 作品简介 / 核心 Skill 清单
 ```
 
 ## 角色清单（8 个 Agent）
@@ -90,4 +90,7 @@ docker exec agentteams-controller bash -c \
 
 1. 调试手册（含所有坑）：`docs/agentTeams调试步骤.md`
 2. 架构说明：`docs/architecture.md`
-3. AgentTeams 官方仓库：https://github.com/agentscope-ai/AgentTeams/tree/main
+3. Agent Identity 清单（8 个 Agent 身份/职责）：`docs/Agent_Identity_清单.md`
+4. 核心 Skill 清单（11 个 Skill 的用途/输入输出/失败处理/协同关系）：`docs/核心skill清单.md`
+5. 作品简介（问题/方案/创新/复用/进展）：`docs/作品简介.md`
+6. AgentTeams 官方仓库：https://github.com/agentscope-ai/AgentTeams/tree/main
