@@ -63,19 +63,23 @@ AgentTeams-devflow-kit/
 
 ```bash
 # 方式一：宿主机脚本（推荐）
-python scripts/run-pipeline-host.py "需求描述" --rules "业务规则"
+# 简单需求：直接命令行传
+python scripts/run-pipeline-host.py "需求描述" --rules "业务规则" --project 项目名
+
+# 复杂需求（任意长度）：用文件承载，不受命令行长度限制
+python scripts/run-pipeline-host.py "占位" --req-file complex-req.md --project 项目名
 
 # 方式二：controller 容器内运行
 docker exec agentteams-controller bash -c \
   'cd /root/agentteams-fs/agents/manager && \
-   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" --rules "业务规则"'
+   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" --rules "业务规则" --project 项目名'
 
-# 例如：
+# 例如（换需求只需换参数 + 新项目目录）：
 #   python scripts/run-pipeline-host.py "BMI 计算功能" \
-#     --rules "输入身高体重，计算 BMI=体重/身高^2，输出分类"
+#     --rules "输入身高体重，计算 BMI=体重/身高^2，输出分类" --project devflow-bmi
 ```
 
-> 流水线自动完成 13 个节点，完成后通知 Manager 通过节点数。详细用法见 `docs/agentTeams调试步骤.md` 第十一章。
+> 流水线**完全通用**：需求/规则运行时传入（`{REQ}`/`{RULES}`），项目目录用 `--project` 指定。需求/规则合计约 30000 字符内走命令行，更长的用 `--req-file` 写文件（自动复制进容器，无长度限制）。自动完成 13 个节点，完成后通知 Manager。详细用法见 `docs/agentTeams调试步骤.md` 第十一章。
 
 ### ③ 手动驱动（备选）
 

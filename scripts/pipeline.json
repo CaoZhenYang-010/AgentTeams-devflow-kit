@@ -1,5 +1,5 @@
 {
-  "project_root": "/root/agentteams-fs/shared/projects/devflow-bmi",
+  "project_root": "/root/agentteams-fs/shared/projects/devflow",
   "admin_user": "admin",
   "nodes": [
     {
@@ -24,9 +24,9 @@
     {
       "id": "backend-coding",
       "worker": "implementer",
-      "artifact": "backend/src/main/java/com/example/app/controller/BmiController.java",
+      "artifact": "backend/实现说明.md",
       "timeout": 600,
-      "prompt": "请基于 {ROOT}/design.md 实现后端功能。实现 BmiController.java（GET /api/bmi/calculate）和对应 service，严格按设计文档模块划分实现，严格按业务规则顺序计算，金额用 BigDecimal、先 setScale(2) 再相加，明细之和等于最终运费。写 JUnit 测试覆盖正数/负数/零/空/临界值/加价/折扣/最低价。确保 mvn test 全部通过。文件写到 backend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请基于 {ROOT}/design.md 实现 {REQ} 功能。业务规则：{RULES}。按设计文档模块划分实现 controller/service/dto 等，数值精度与边界处理按设计执行。写 JUnit 测试覆盖全部验收标准与关键边界，确保 mvn test 通过。完成后写 {ROOT}/backend/实现说明.md（简述实现的接口与逻辑）。【重要】产出文件后必须用 file-sync 同步到 MinIO 共享区。"
     },
     {
       "id": "backend-test",
@@ -42,9 +42,9 @@
     {
       "id": "frontend-coding",
       "worker": "implementer",
-      "artifact": "frontend/src/views/BmiCalc.vue",
+      "artifact": "frontend/实现说明.md",
       "timeout": 600,
-      "prompt": "请基于 {ROOT}/design.md 实现前端 Vue3：src/views/BmiCalc.vue（表单输入+计算+结果明细）、src/api/bmi.js（封装 POST /api/bmi/calculate）、修改 App.vue 挂载。金额两位小数，Element Plus，接口契约按 design.md。确保 npm run build 通过。文件写到 frontend/。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请基于 {ROOT}/design.md 实现 {REQ} 功能的前端页面。业务规则：{RULES}。按设计文档实现页面组件（src/views）与 API 封装（src/api），接口契约严格按 design.md，数值展示精度按设计执行。确保 npm run build 通过。完成后写 {ROOT}/frontend/实现说明.md（简述实现的页面与接口）。【重要】产出文件后必须用 file-sync 同步到 MinIO 共享区。"
     },
     {
       "id": "frontend-build",
@@ -79,7 +79,7 @@
       "artifact": "backend/adversarial_test_report.txt",
       "timeout": 900,
       "fail_to": "defect-locate",
-      "prompt": "请用 adversarial-test 这个 skill，对运费计算后端做独立对抗性测试：不参考、不复制 implementer 自写测试，只依据验收标准独立构造攻击性 JUnit 用例（边界值、非法输入、规则组合、精度），真实运行 mvn test。输出 adversarial_test_report.txt。若暴露缺陷如实报告。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "prompt": "请用 adversarial-test 这个 skill，对 {ROOT}/backend 做独立对抗性测试：不参考、不复制 implementer 自写测试，只依据 {ROOT}/design.md 的验收标准独立构造攻击性 JUnit 用例（边界值、非法输入、规则组合、精度），真实运行 mvn test。输出 adversarial_test_report.txt 并同步到 MinIO。若暴露缺陷如实报告。【重要】产出文件后必须用 file-sync 同步到 MinIO 共享区。",
       "success": [
         "Failures: 0"
       ]
@@ -97,7 +97,7 @@
       "worker": "analyst",
       "artifact": "impact_report.md",
       "timeout": 300,
-      "prompt": "请用 impact-analysis 这个 skill，对 {ROOT} 这个全新项目做影响面分析。重要：{ROOT} 没有历史 impact_report，不要引用或复用其他项目的旧报告。请扫描 {ROOT}/backend/src 和 {ROOT}/frontend/src 的源码结构，产出 impact_report.md 写入 {ROOT}/ 目录，并用 file-sync 同步到 MinIO 共享区。"
+      "prompt": "请用 impact-analysis 这个 skill，对 {ROOT} 项目做影响面分析。不要引用或复用其他项目的旧报告。请扫描 {ROOT}/backend/src 和 {ROOT}/frontend/src 的源码结构，产出 impact_report.md 写入 {ROOT}/ 目录，并用 file-sync 同步到 MinIO 共享区。"
     },
     {
       "id": "e2e",

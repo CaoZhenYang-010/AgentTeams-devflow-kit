@@ -605,8 +605,11 @@ docker build -f Dockerfile.worker -t devflow-worker:latest .
 **方式一：宿主机脚本（推荐，无需进容器）**
 
 ```bash
-# 宿主机直接运行，自动复制驱动到工作区并在 controller 内执行
-python scripts/run-pipeline-host.py "需求描述" --rules "业务规则" [--max-nodes N]
+# 简单需求：直接命令行传
+python scripts/run-pipeline-host.py "需求描述" --rules "业务规则" --project 项目名 [--max-nodes N]
+
+# 复杂需求（任意长度）：用文件承载
+python scripts/run-pipeline-host.py "占位" --req-file complex-req.md --project 项目名
 ```
 
 **方式二：在 controller 容器内直接运行**
@@ -617,10 +620,12 @@ cp scripts/run-pipeline.py scripts/pipeline.json ~/agentteams-manager/
 
 docker exec agentteams-controller bash -c 'cd /root/agentteams-fs/agents/manager && \
   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" \
-  --rules "业务规则" [--max-nodes N] [--dry-run]'
+  --rules "业务规则" --project 项目名 [--max-nodes N] [--dry-run]'
 ```
 
-> 两种方式等价。宿主机脚本通过 `PIPELINE_REQ`/`PIPELINE_RULES` 环境变量传参（避免引号转义）。
+> 两种方式等价。宿主机脚本通过 `PIPELINE_REQ`/`PIPELINE_RULES`/`PIPELINE_PROJECT`/`PIPELINE_REQ_FILE` 环境变量传参。
+> **流水线通用**：需求/规则运行时传入（`{REQ}`/`{RULES}` 占位符），项目目录用 `--project` 指定，同一套代码可跑任意需求。
+> **复杂需求**：需求/规则合计约 30000 字符内走命令行；更长的用 `--req-file` 写文件，无长度限制。
 
 ### 11.3 工作原理
 
@@ -635,14 +640,14 @@ docker exec agentteams-controller bash -c 'cd /root/agentteams-fs/agents/manager
 
 | 字段 | 说明 |
 |------|------|
-| `project_root` | 容器内项目路径（如 `/root/agentteams-fs/shared/projects/devflow-vat`）|
+| `project_root` | 容器内项目路径（可用 `--project` 运行时覆盖）|
 | `nodes[].worker` | 目标 Worker 名 |
-| `nodes[].artifact` | 检测该节点完成的产物文件（相对 project_root）|
-| `nodes[].prompt` | 发给 Worker 的提示语（`{ROOT}`/`{REQ}`/`{RULES}` 占位符）|
+| `nodes[].artifact` | 检测该节点完成的产物文件（相对 project_root，**通用标记文件**，如 `实现说明.md`）|
+| `nodes[].prompt` | 发给 Worker 的提示语（`{ROOT}`/`{REQ}`/`{RULES}` 占位符，**不写死业务内容**）|
 | `nodes[].fail_to` | 失败时回流的节点 |
 | `nodes[].success` | 产物内容含这些关键词才算通过（如 `BUILD SUCCESS`）|
 
-> ⚠️ 换需求时：**新建项目目录**（如 devflow-vat），改 `project_root` 和产物名（如 `VatController.java`/`VatCalc.vue`），避免 Worker 记忆旧功能。
+> **通用设计**：提示语只含占位符（需求/规则/路径运行时传入），产物用通用标记文件（非功能名）。换需求时用 `--project` 指定新项目目录，无需改 pipeline.json。
 
 ### 11.5 ⚠️ 六个关键坑（解决了才跑通全流程）
 
@@ -670,7 +675,7 @@ Worker 写了文件不一定自动同步到 MinIO。提示语里必须加：**"�
 
 **坑 3：换需求要新项目目录**
 
-Worker 有"记忆"（会话/工作区），换需求要建新项目目录（如 `devflow-vat`），否则它认为"上轮已完成"不重新开发。
+Worker 有"记忆"（会话/工作区），换需求要建新项目目录并指定：`--project 新项目名`（如 `devflow-vat`），否则它认为"上轮已完成"不重新开发。
 
 **坑 4：success 关键词要匹配实际报告措辞**
 

@@ -128,9 +128,11 @@ def wait_artifact(root, node, timeout):
 
 # ---------- 主流程 ----------
 def main():
-    # 需求/规则：优先环境变量（宿主机脚本经 docker exec -e 传入），否则从 argv 解析（跳过 --flag）
+    # 需求/规则/项目：优先环境变量，否则从 argv 解析（跳过 --flag）
     req = os.environ.get("PIPELINE_REQ", "")
     rules = os.environ.get("PIPELINE_RULES", "")
+    req_file = os.environ.get("PIPELINE_REQ_FILE", "")
+    project = os.environ.get("PIPELINE_PROJECT", "")
     max_nodes = 999
     dry_run = False
     args = sys.argv[1:]
@@ -140,8 +142,16 @@ def main():
             if not rules:
                 rules = args[i + 1]
             i += 2
+        elif args[i] == "--req-file" and i + 1 < len(args):
+            if not req_file:
+                req_file = args[i + 1]
+            i += 2
         elif args[i] == "--max-nodes" and i + 1 < len(args):
             max_nodes = int(args[i + 1]); i += 2
+        elif args[i] == "--project" and i + 1 < len(args):
+            if not project:
+                project = args[i + 1]
+            i += 2
         elif args[i] == "--dry-run":
             dry_run = True; i += 1
         elif args[i].startswith("--"):
@@ -150,12 +160,21 @@ def main():
             req = args[i]; i += 1
         else:
             i += 1
+    # 复杂需求：从文件读取（不受命令行长度限制）
+    if req_file:
+        with open(req_file, encoding="utf-8") as f:
+            req = f.read()
     if not req:
-        print("用法: python3 run-pipeline.py \"需求\" [--rules \"规则\"] [--max-nodes N] [--dry-run]")
+        print("用法: python3 run-pipeline.py \"需求\" [--rules \"规则\"] [--req-file 文件] [--max-nodes N] [--dry-run]")
         sys.exit(1)
 
     cfg = json.load(open(CONFIG, encoding="utf-8"))
     root = cfg["project_root"]
+    # 项目路径可参数化：PIPELINE_PROJECT 环境变量或 --project 参数覆盖（换需求用新项目目录）
+    if project:
+        root = f"/root/agentteams-fs/shared/projects/{project}"
+        cfg["project_root"] = root
+        print(f"[流水线] 使用项目目录: {root}")
     nodes = cfg["nodes"]
     node_map = {n["id"]: n for n in nodes}
 

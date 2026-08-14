@@ -104,14 +104,28 @@ devflow-runner（Worker · 编排）
 
 ```bash
 # 方式一：宿主机脚本（推荐）
-python scripts/run-pipeline-host.py "需求" --rules "业务规则" [--max-nodes N]
+# 简单需求：直接命令行传
+python scripts/run-pipeline-host.py "需求" --rules "业务规则" --project 项目名 [--max-nodes N]
+
+# 复杂需求（任意长度）：用文件承载，不受命令行长度限制
+python scripts/run-pipeline-host.py "占位" --req-file complex-req.md --project 项目名
 
 # 方式二：controller 容器内直接运行
 docker exec agentteams-controller bash -c \
   'cd /root/agentteams-fs/agents/manager && \
    PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求" \
-   --rules "业务规则" [--max-nodes N] [--dry-run]'
+   --rules "业务规则" --project 项目名 [--max-nodes N] [--dry-run]'
+
+# 容器内同样支持 --req-file
+docker exec -e "PIPELINE_REQ_FILE=/root/agentteams-fs/agents/manager/req.md" \
+  agentteams-controller bash -c \
+  'cd /root/agentteams-fs/agents/manager && \
+   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py --req-file req.md --project 项目名'
 ```
+
+> **通用设计**：需求/规则经 `{REQ}`/`{RULES}` 占位符运行时传入，项目目录用 `--project` 指定。同一套流水线可跑任意需求（换项目目录即可），无写死业务内容。
+>
+> **需求长度**：需求/规则合计约 30000 字符内走命令行；更长的用 `--req-file` 写文件（宿主机脚本自动复制到工作区并注入容器路径），无长度限制。
 
 ---
 
