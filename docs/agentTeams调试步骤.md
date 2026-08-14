@@ -600,17 +600,27 @@ docker build -f Dockerfile.worker -t devflow-worker:latest .
 | `AgentTeams-devflow-kit/scripts/run-pipeline.py` | 驱动脚本（运行在 controller 容器内）|
 | `AgentTeams-devflow-kit/scripts/pipeline.json` | 流水线定义（节点/worker/产物/提示语/fail_to）|
 
-### 11.2 用法
+### 11.2 用法（两种触发方式）
+
+**方式一：宿主机脚本（推荐，无需进容器）**
 
 ```bash
-# 复制到挂载点（controller 可见）
+# 宿主机直接运行，自动复制驱动到工作区并在 controller 内执行
+python scripts/run-pipeline-host.py "需求描述" --rules "业务规则" [--max-nodes N]
+```
+
+**方式二：在 controller 容器内直接运行**
+
+```bash
+# 先复制驱动到挂载点（controller 可见）
 cp scripts/run-pipeline.py scripts/pipeline.json ~/agentteams-manager/
 
-# 在 controller 容器内运行
 docker exec agentteams-controller bash -c 'cd /root/agentteams-fs/agents/manager && \
   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" \
   --rules "业务规则" [--max-nodes N] [--dry-run]'
 ```
+
+> 两种方式等价。宿主机脚本通过 `PIPELINE_REQ`/`PIPELINE_RULES` 环境变量传参（避免引号转义）。
 
 ### 11.3 工作原理
 

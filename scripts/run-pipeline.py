@@ -128,24 +128,31 @@ def wait_artifact(root, node, timeout):
 
 # ---------- 主流程 ----------
 def main():
-    if len(sys.argv) < 2:
-        print("用法: python3 run-pipeline.py \"需求\" [--rules \"规则\"] [--max-nodes N] [--dry-run]")
-        sys.exit(1)
-    req = sys.argv[1]
-    rules = ""
+    # 需求/规则：优先环境变量（宿主机脚本经 docker exec -e 传入），否则从 argv 解析（跳过 --flag）
+    req = os.environ.get("PIPELINE_REQ", "")
+    rules = os.environ.get("PIPELINE_RULES", "")
     max_nodes = 999
     dry_run = False
-    args = sys.argv[2:]
+    args = sys.argv[1:]
     i = 0
     while i < len(args):
         if args[i] == "--rules" and i + 1 < len(args):
-            rules = args[i + 1]; i += 2
+            if not rules:
+                rules = args[i + 1]
+            i += 2
         elif args[i] == "--max-nodes" and i + 1 < len(args):
             max_nodes = int(args[i + 1]); i += 2
         elif args[i] == "--dry-run":
             dry_run = True; i += 1
+        elif args[i].startswith("--"):
+            i += 1
+        elif not req:
+            req = args[i]; i += 1
         else:
             i += 1
+    if not req:
+        print("用法: python3 run-pipeline.py \"需求\" [--rules \"规则\"] [--max-nodes N] [--dry-run]")
+        sys.exit(1)
 
     cfg = json.load(open(CONFIG, encoding="utf-8"))
     root = cfg["project_root"]

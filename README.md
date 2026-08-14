@@ -20,6 +20,7 @@ AgentTeams-devflow-kit/
 │   ├── apply.sh              # 一键创建 Worker/Team
 │   ├── install-skills.sh     # 一键分发 Skill
 │   ├── run-pipeline.py       # ★ 全自动流水线驱动（Matrix 派发 + MinIO 轮询 + 回流）
+│   ├── run-pipeline-host.py  # ★ 宿主机一键启动脚本（无需进容器）
 │   ├── pipeline.json         # ★ 流水线驱动配置（节点/产物/提示语/success 判定）
 │   ├── pull-minio.sh         # 拉取 MinIO 产物到本地
 │   └── run.sh                # 手动驱动入口
@@ -61,14 +62,16 @@ AgentTeams-devflow-kit/
 ### ② 全自动跑流水线（一键）
 
 ```bash
-# 在 agentteams-controller 容器内运行
+# 方式一：宿主机脚本（推荐）
+python scripts/run-pipeline-host.py "需求描述" --rules "业务规则"
+
+# 方式二：controller 容器内运行
 docker exec agentteams-controller bash -c \
   'cd /root/agentteams-fs/agents/manager && \
-   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" \
-   --rules "业务规则"'
+   PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求描述" --rules "业务规则"'
 
 # 例如：
-#   python3 -u run-pipeline.py "BMI 计算功能" \
+#   python scripts/run-pipeline-host.py "BMI 计算功能" \
 #     --rules "输入身高体重，计算 BMI=体重/身高^2，输出分类"
 ```
 

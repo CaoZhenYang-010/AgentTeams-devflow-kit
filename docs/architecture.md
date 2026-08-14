@@ -100,10 +100,13 @@ devflow-runner（Worker · 编排）
 | **会话重置** | 运行前对所有 Worker 发 `/new`，避免跨需求上下文污染 |
 | **Manager 通知** | 完成后发 DM 给 Manager，报告通过节点数 |
 
-### 3.3 使用方式
+### 3.3 使用方式（两种触发）
 
 ```bash
-# 运行在 controller 容器内
+# 方式一：宿主机脚本（推荐）
+python scripts/run-pipeline-host.py "需求" --rules "业务规则" [--max-nodes N]
+
+# 方式二：controller 容器内直接运行
 docker exec agentteams-controller bash -c \
   'cd /root/agentteams-fs/agents/manager && \
    PYTHONIOENCODING=utf-8 python3 -u run-pipeline.py "需求" \
