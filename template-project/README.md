@@ -1,4 +1,4 @@
-# template-project —— 被流水线开发的全栈示例工程
+# template-project —— 被流水线开发的全栈模板工程
 
 这是 **DevFlow 流水线要"开发"的目标项目**（层 2：Worker 团队实际操作的对象），
 不是流水线本身（层 1）。

@@ -634,7 +634,7 @@ docker exec agentteams-controller bash -c 'cd /root/agentteams-fs/agents/manager
 
 > ⚠️ 换需求时：**新建项目目录**（如 devflow-vat），改 `project_root` 和产物名（如 `VatController.java`/`VatCalc.vue`），避免 Worker 记忆旧功能。
 
-### 11.5 ⚠️ 三个关键坑（解决了才跑通）
+### 11.5 ⚠️ 六个关键坑（解决了才跑通全流程）
 
 **坑 1：@mention 格式（最关键）**
 
@@ -662,12 +662,49 @@ Worker 写了文件不一定自动同步到 MinIO。提示语里必须加：**"�
 
 Worker 有"记忆"（会话/工作区），换需求要建新项目目录（如 `devflow-vat`），否则它认为"上轮已完成"不重新开发。
 
-### 11.6 实测结果
+**坑 4：success 关键词要匹配实际报告措辞**
+
+驱动按 `nodes[].success` 关键词判断节点通过。必须匹配 Worker 报告的实际措辞：
+- 前端构建报告写"**构建成功**"，不是"构建通过"/"BUILD SUCCESS" → success 要包含"构建成功"
+- 判定规则：列出所有可能的通过措辞，防止误判失败
+
+**坑 5：Worker 会话污染 → 用 `/new` 重置**
+
+Worker 的 LLM 会话会积累旧需求上下文（如 analyst 一直在讲旧 freight 项目）。**流水线开始时对所有 Worker 发 `/new`** 重置会话，否则后续节点会引用旧项目不处理新任务。
+
+**坑 6：尾部节点提示语要明确指定项目**
+
+影响面/E2E/门禁等节点，提示语必须**明确 {ROOT} 项目 + 禁止复用旧报告**，否则 Worker 会检查旧项目的报告（如 `FreightService.java`）而拒绝重做。
+
+### 11.6 质量门禁回流（拒绝 → 修复 → 重跑）
+
+门禁节点（quality-leader / review / 对抗）拒绝时，驱动自动走 fail_to 回流：
+
+```
+节点失败（approved:false 或超时）
+  → defect-locate：读失败证据（对抗报告/quality_notes）→ defect_report.md
+  → implementer：按 defect_report.md + quality_notes.md 精准修复（含配置问题）
+  → 重跑该节点 → 直到通过
+```
+
+> 配置类问题（如 JaCoCo 缺失、npm 高危依赖）也要让 implementer 一并修复（改 pom.xml / npm audit fix）。
+
+### 11.7 JaCoCo 覆盖率预置（保证每次有覆盖率）
+
+模板 `backend/pom.xml` 预置 `jacoco-maven-plugin`（prepare-agent + report），`mvn test` 自动生成覆盖率。这样质量门禁**每次都能验证覆盖率 ≥60%**，不会被"JaCoCo 未配置"卡住。
+
+### 11.8 release 判定 + 通知 Manager
+
+- **release 节点**：产物是特殊标记 `RELEASE_DONE`（检查 `.git` 是否出现），判定时直接视为成功（`.git` 出现即 git 初始化完成）
+- **完成通知**：流水线全部跑完后，驱动自动给 **Manager 的 DM 房间**发通知，报告"共 X/13 个节点通过"（`MANAGER_ROOM` 常量）
+
+### 11.9 实测结果
 
 | 需求 | 节点 | 结果 |
 |------|------|------|
-| 运费计算（freight）| 1-5（design→architect→backend-coding→backend-test→frontend-coding）| ✅ 全过（57 测试）|
-| 增值税计算（VAT）| 1-5（全新需求）| ✅ 全过（74 测试，全新 VatController/VatCalc）|
+| 运费计算（freight）| 1-5 | ✅ 全过（57 测试）|
+| 增值税计算（VAT）| 1-5（全新需求）| ✅ 全过（74 测试）|
+| **BMI 计算**（全新需求）| **1-13 完整流水线** | ✅ **全过（含 JaCoCo 覆盖率、E2E、质量门禁、发布、通知 Manager 13/13）** |
 
 ---
 

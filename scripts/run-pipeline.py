@@ -14,6 +14,8 @@ import json, subprocess, sys, time, urllib.parse, uuid, os
 
 MATRIX = "http://127.0.0.1:6167"
 MC_ALIAS = "agentteams/agentteams-storage"
+# Manager 的 DM 房间（admin 与 manager 两人），流水线完成后发通知用
+MANAGER_ROOM = "!KE8nTiYPVq3nn0rMUC:matrix-local.agentteams.io:18080"
 CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline.json")
 
 def _load_admin_pass():
@@ -84,6 +86,8 @@ def read_artifact(root, artifact):
 
 def check_success(node, content):
     """根据节点类型用内容关键词判定成功。"""
+    if node.get("artifact") == "RELEASE_DONE":
+        return True  # .git 已出现（git init/commit 完成）即发布成功
     success = node.get("success", [])
     if not success:
         return content != ""  # 只要产物存在就算成功
@@ -143,7 +147,15 @@ def main():
             users[w] = data["matrixUserID"]
             print(f"[房间] {w} -> {rooms[w]}  ({users[w]})")
 
+    # 运行前重置所有 Worker 会话（清除跨功能上下文污染，否则 Worker 会卡在旧需求）
+    if not dry_run:
+        print("[流水线] 重置 Worker 会话（/new）...")
+        for w, room in rooms.items():
+            send_message(token, room, "/new", users.get(w))
+            time.sleep(6)
+
     idx = 0
+    passed_count = 0
     max_iter = 30
     for _ in range(max_iter):
         if idx >= len(nodes) or idx >= max_nodes:
@@ -173,6 +185,7 @@ def main():
         if not appeared:
             if node.get("skip_if_no_failure"):
                 print(f"  ⏭ {nid} 无产物但标记为跳过（无失败场景），视为通过")
+                passed_count += 1
                 idx += 1
                 continue
             print(f"  ✗ 节点 {nid} 超时无产物")
@@ -182,6 +195,7 @@ def main():
         ok = check_success(node, content)
         if ok:
             print(f"  ✓ {nid} 通过")
+            passed_count += 1
             idx += 1
         else:
             print(f"  ✗ {nid} 产物存在但未通过内容校验")
@@ -193,6 +207,13 @@ def main():
     print("\n[流水线] 全部节点完成 ✅")
     print(f"产物在: {root}")
 
+    # 通知 Manager：流水线完成 + 通过节点数
+    notify = (f"流水线执行完成：共 {passed_count}/{len(nodes)} 个节点通过。"
+              f"需求「{req[:40]}」，产物在 {root}。")
+    if not dry_run:
+        send_message(token, MANAGER_ROOM, notify)
+    print(f"[通知] 已发送给 Manager: {notify}")
+
 
 def handle_failure(node, token, rooms, users, root, node_map, req, rules):
     """节点失败：有 fail_to 则走缺陷定位 → 修复 → 重跑该节点。"""
@@ -202,22 +223,27 @@ def handle_failure(node, token, rooms, users, root, node_map, req, rules):
         sys.exit(1)
     print(f"  失败 → 走 {target}")
 
-    # 1. 缺陷定位
+    # 1. 缺陷定位（读取失败证据：对抗测试报告 或 质量门禁意见 quality_notes.md）
     dl = node_map.get("defect-locate")
     if dl:
-        dl_prompt = dl["prompt"].replace("{ROOT}", root).replace("{REQ}", req).replace("{RULES}", rules)
+        dl_prompt = (f"请分析 {root}/ 下的失败证据（若有对抗测试报告 adversarial_test_report.txt，"
+                     f"或质量门禁意见 quality_notes.md），把问题整理成 defect_report.md 写入 {root}/"
+                     f"并用 file-sync 同步到 MinIO。包含：root_cause、evidence、fix_suggestion。")
         send_message(token, rooms[dl["worker"]], dl_prompt, users.get(dl["worker"]))
         _, appeared = wait_artifact(root, dl, dl.get("timeout", 300))
         print(f"  缺陷定位报告{'已产出' if appeared else '未产出'}")
         if not appeared:
             sys.exit("缺陷定位失败，终止")
 
-    # 2. 修复（implementer 带证据重写）
-    fix_prompt = (f"根据 {root}/defect_report.md 修复缺陷，带证据精准修复，确保 mvn test 通过后报告完成。")
+    # 2. 修复（implementer 带证据精准修复，含配置问题如 JaCoCo/npm 漏洞）
+    fix_prompt = (f"根据 {root}/defect_report.md（以及 {root}/quality_notes.md 质量门禁意见）修复问题。"
+                  f"带证据精准修复；若是配置/依赖问题（如 pom.xml 缺 JaCoCo 插件、npm 高危依赖漏洞），"
+                  f"一并修复（如 pom.xml 加 jacoco-maven-plugin 并执行 mvn jacoco:report、npm audit fix）。"
+                  f"确保 mvn test 通过后，用 file-sync 把改动同步到 MinIO，报告完成。")
     fix_worker = "implementer"
     send_message(token, rooms[fix_worker], fix_prompt, users.get(fix_worker))
-    print(f"  已通知 {fix_worker} 按缺陷报告修复，等待 120s...")
-    time.sleep(120)
+    print(f"  已通知 {fix_worker} 按缺陷/门禁意见修复，等待 180s...")
+    time.sleep(180)
 
     # 3. 返回重跑原失败节点
     return list(node_map.keys()).index(node["id"])

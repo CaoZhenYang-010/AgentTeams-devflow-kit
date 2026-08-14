@@ -97,7 +97,7 @@
       "worker": "analyst",
       "artifact": "impact_report.md",
       "timeout": 300,
-      "prompt": "请用 impact-analysis 这个 skill，对改动做影响面分析：扫描 backend/frontend 源码结构，产出 impact_report.md（模块清单、受影响范围、建议回归范围）。程序化产出。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请用 impact-analysis 这个 skill，对 {ROOT} 这个全新项目做影响面分析。重要：{ROOT} 没有历史 impact_report，不要引用或复用其他项目的旧报告。请扫描 {ROOT}/backend/src 和 {ROOT}/frontend/src 的源码结构，产出 impact_report.md 写入 {ROOT}/ 目录，并用 file-sync 同步到 MinIO 共享区。"
     },
     {
       "id": "e2e",
@@ -105,7 +105,7 @@
       "artifact": "frontend/e2e_report.txt",
       "timeout": 900,
       "fail_to": "defect-locate",
-      "prompt": "请用 test-run skill 执行全栈 E2E：启动 backend（mvn spring-boot:run）和 frontend（npm run dev），用 Playwright 真实浏览器测试运费计算页面：打开页面→输入里程/重量/服务等级→点击计算→断言明细与最终运费。输出 e2e_report.txt 与截图。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "prompt": "请用 test-run skill 对 {ROOT} 项目执行全栈 E2E：启动 {ROOT}/backend 和 {ROOT}/frontend，用 Playwright 真实浏览器测试 {ROOT} 的功能页面：打开页面→输入参数→点击计算→断言结果。输出 e2e_report.txt 写入 {ROOT}/frontend/ 并同步到 MinIO。",
       "success": [
         "全部通过",
         "passed",
@@ -120,7 +120,7 @@
       "artifact": "quality_notes.md",
       "timeout": 300,
       "fail_to": "defect-locate",
-      "prompt": "请用 quality-gate 这个 skill 做发布前质量门禁复核：审查 test_report.txt、frontend_build_report.txt、adversarial_test_report.txt、e2e_report.txt、impact_report.md。若报告未更新先执行 agentteams-sync 拉最新。确认全部真实通过后将门禁结果以 JSON 写入 {ROOT}/quality_notes.md，同时回复 JSON：{\"approved\": true|false, \"issues\": \"...\"}。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "prompt": "请用 quality-gate 这个 skill 做发布前质量门禁复核：审查 {ROOT} 下的 test_report.txt、frontend_build_report.txt、adversarial_test_report.txt、e2e_report.txt、impact_report.md（都在 {ROOT}/ 下）。若报告未更新先 agentteams-sync 拉最新。确认全部真实通过后，将 JSON 结果写入 {ROOT}/quality_notes.md，用 file-sync 同步到 MinIO，并回复。",
       "success": [
         "approved\": true",
         "approved: true"
@@ -131,7 +131,7 @@
       "worker": "devflow-runner",
       "artifact": "RELEASE_DONE",
       "timeout": 300,
-      "prompt": "请用 verify-release 这个 skill 执行发布：在 {ROOT}/ 下执行 git init（如未初始化）、git add .、git commit -m \"devflow: {REQ} [ci pass]\"。若未配置 git 身份自动补。"
+      "prompt": "请用 verify-release 这个 skill 执行发布：在 {ROOT} 下执行 git init（如未初始化）、git add .、git commit -m \"devflow: {REQ} [ci pass]\"。若未配置 git 身份自动补。"
     }
   ]
 }
