@@ -10,7 +10,7 @@
   3. 用内容关键词判定节点通过/失败
   4. 通过则推进，失败按 fail_to 走缺陷定位 → 修复 → 重跑
 """
-import json, subprocess, sys, time, urllib.parse, uuid, os
+import json, re, subprocess, sys, time, urllib.parse, uuid, os
 
 MATRIX = "http://127.0.0.1:6167"
 MC_ALIAS = "agentteams/agentteams-storage"
@@ -109,7 +109,12 @@ def check_success(node, content):
     success = node.get("success", [])
     if not success:
         return content != ""  # 只要产物存在就算成功
-    return any(k in content for k in success)
+    if any(k in content for k in success):
+        return True
+    # 兜底：approved 判定放宽 JSON/YAML 空格与大小写差异（如 "approved" : true / approved: True）
+    if any("approved" in k for k in success):
+        return bool(re.search(r'approved\s*[":\s]*true', content, re.I))
+    return False
 
 def wait_artifact(root, node, timeout):
     """轮询等待节点产物出现，返回 (content, 是否出现)。"""
@@ -233,7 +238,7 @@ def main():
                 idx += 1
                 continue
             print(f"  ✗ 节点 {nid} 超时无产物")
-            idx = handle_failure(node, token, rooms, users, root, node_map, req, rules)
+            idx = handle_failure(node, token, rooms, users, root, node_map, req, rules, content)
             continue
 
         ok = check_success(node, content)
@@ -243,7 +248,7 @@ def main():
             idx += 1
         else:
             print(f"  ✗ {nid} 产物存在但未通过内容校验")
-            idx = handle_failure(node, token, rooms, users, root, node_map, req, rules)
+            idx = handle_failure(node, token, rooms, users, root, node_map, req, rules, content)
     else:
         print("[流水线] 超过最大迭代次数（疑似死循环）")
         sys.exit(1)
@@ -266,15 +271,32 @@ def main():
             print(f"[通知] 发送失败（不影响流水线结果）: {e}")
 
 
-def handle_failure(node, token, rooms, users, root, node_map, req, rules):
-    """节点失败：有 fail_to 则走缺陷定位 → 修复 → 重跑该节点。"""
+def handle_failure(node, token, rooms, users, root, node_map, req, rules, content=""):
+    """节点失败回流（尊重 fail_to 语义）。
+
+    - fail_to 是上游产物节点（如 design）：评审/设计类驳回，回流到该节点重做产物（带驳回意见），
+      而不是让 implementer 改代码——否则设计缺陷永远修不掉，形成死循环。
+    - fail_to 是 defect-locate：测试/构建/门禁类失败，走缺陷定位 → implementer 修复 → 重跑原节点。
+    """
     target = node.get("fail_to")
     if not target:
         print(f"  节点 {node['id']} 失败且无 fail_to，终止。")
         sys.exit(1)
-    print(f"  失败 → 走 {target}")
+    target_idx = list(node_map.keys()).index(target)
+    print(f"  失败 → 按 fail_to 回流到 {target}")
 
-    # 1. 缺陷定位（读取失败证据：对抗测试报告 或 质量门禁意见 quality_notes.md）
+    # 评审/设计类驳回：把失败证据发给上游 worker，让其修正产物，回流重做
+    if target != "defect-locate":
+        if content:
+            back = (f"你的产物被 {node['id']} 驳回。驳回意见如下，请据此修正你的产出（写入 {root}/）"
+                    f"并用 file-sync 同步到 MinIO：\n{content[:2000]}")
+            worker = node_map[target]["worker"]
+            send_message(token, rooms[worker], back, users.get(worker))
+            print(f"  已把驳回意见发给 {worker}，等待其修正产物...")
+            time.sleep(120)
+        return target_idx
+
+    # 缺陷类失败：1. 缺陷定位（读取失败证据：对抗测试报告 或 质量门禁意见 quality_notes.md）
     dl = node_map.get("defect-locate")
     if dl:
         dl_prompt = (f"请分析 {root}/ 下的失败证据（若有对抗测试报告 adversarial_test_report.txt，"

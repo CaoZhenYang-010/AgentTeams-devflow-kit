@@ -682,6 +682,7 @@ Worker 有"记忆"（会话/工作区），换需求要建新项目目录并指�
 驱动按 `nodes[].success` 关键词判断节点通过。必须匹配 Worker 报告的实际措辞：
 - 前端构建报告写"**构建成功**"，不是"构建通过"/"BUILD SUCCESS" → success 要包含"构建成功"
 - 判定规则：列出所有可能的通过措辞，防止误判失败
+- `approved` 类判定有正则兜底：兼容 `"approved" : true` / `approved: True` 等空格、大小写变体，减少"实际通过但格式差异被判失败"的误报
 
 **坑 5：Worker 会话污染 → 用 `/new` 重置**
 
@@ -691,9 +692,21 @@ Worker 的 LLM 会话会积累旧需求上下文（如 analyst 一直在讲旧 f
 
 影响面/E2E/门禁等节点，提示语必须**明确 {ROOT} 项目 + 禁止复用旧报告**，否则 Worker 会检查旧项目的报告（如 `FreightService.java`）而拒绝重做。
 
-### 11.6 质量门禁回流（拒绝 → 修复 → 重跑）
+### 11.6 失败回流（两类，尊重 fail_to 语义）
 
-门禁节点（quality-leader / review / 对抗）拒绝时，驱动自动走 fail_to 回流：
+驱动按 `fail_to` 字段分流两类回流，语义不同：
+
+**① 评审/设计类驳回 → 回流上游产物节点（如 architect-leader → design）**
+
+```
+architect-leader 评审不通过（design.md 有缺陷）
+  → 把驳回意见（arch_review.md 内容）发给 designer
+  → designer 修正 design.md → 重跑 design → architect-leader 重新评审 → 直到通过
+```
+
+> **关键**：这类回流必须回流到上游产物节点（designer 改设计），**不能**走"implementer 修代码"——否则 design.md 一直不变，评审必然再次拒绝，形成死循环（曾踩过的坑）。
+
+**② 测试/构建/门禁类失败 → 缺陷定位 → 修复 → 重跑**
 
 ```
 节点失败（approved:false 或超时）

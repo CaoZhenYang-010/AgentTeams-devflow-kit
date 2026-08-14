@@ -16,7 +16,7 @@
 | **输入/输出** | 输入：需求 + workflow.yaml；输出：各节点产物（design.md/测试报告/评审/代码/发布）|
 | **调用条件** | 发起流水线运行（run-pipeline.py 或人工触发）|
 | **依赖工具** | Matrix API（真提及派发）、mc（MinIO 轮询）、agt（取 Worker 房间）|
-| **失败机制处理** | 节点超时重试（2 次）；失败按 fail_to 回流 defect-locate→implementer 修复→重跑；无 fail_to 则终止并报告 |
+| **失败机制处理** | 节点超时重试（2 次）；失败按 fail_to 分流回流——评审类→上游产物节点（如 design）带意见重做，缺陷类→defect-locate→implementer 修复→重跑；无 fail_to 则终止并报告 |
 | **安全边界** | 验证节点必须真实工具判定，不跳过任一验证；会话重置防上下文污染 |
 | **复用价值** | 声明式流水线，换需求/换项目即复用（改 pipeline.json）|
 | **协同流程关系** | 全局编排者，调度全部 8 个 Agent |

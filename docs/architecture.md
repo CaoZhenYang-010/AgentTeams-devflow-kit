@@ -94,8 +94,8 @@ devflow-runner（Worker · 编排）
 |--------|------|
 | **Matrix 真提及** | 消息带 `format` + `formatted_body`(permalink) + `m.mentions.user_ids`，否则 Worker 不响应 |
 | **产物检测** | `mc stat` 轮询 MinIO，Worker 须用 file-sync 同步到 MinIO |
-| **内容校验** | `nodes[].success` 关键词判定通过/失败（匹配实际报告措辞）|
-| **fail_to 回流** | 门禁拒绝 → defect-locate → implementer 精准修复 → 重跑 |
+| **内容校验** | `nodes[].success` 关键词判定通过/失败（`approved` 含正则兜底，兼容 JSON/YAML 空格与大小写变体）|
+| **fail_to 回流** | 尊重 `fail_to` 两类语义：评审类（architect-leader 驳回）→ 回流上游产物节点（design）带意见重做；缺陷类（测试/构建/门禁失败）→ defect-locate → implementer 修复 → 重跑 |
 | **重试机制** | 节点超时自动重发（最多 2 次）|
 | **会话重置** | 运行前对所有 Worker 发 `/new`，避免跨需求上下文污染 |
 | **Manager 通知** | 完成后发 DM 给 Manager，报告通过节点数 |

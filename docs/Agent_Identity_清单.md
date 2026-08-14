@@ -144,7 +144,7 @@ design ──→ architect-leader ──→ backend-coding ──→ backend-tes
 读 pipeline.json
   → 重置所有 Worker 会话（/new，清除跨需求污染）
   → 逐节点：Matrix 真提及派发 → MinIO 轮询产物 → 内容关键词校验
-  → 通过推进 / 超时重试 / 失败按 fail_to 回流（defect-locate → implementer 修复 → 重跑）
+  → 通过推进 / 超时重试 / 失败按 fail_to 分流回流（评审类 → 上游产物节点带意见重做；缺陷类 → defect-locate → implementer 修复 → 重跑）
   → 全部完成 → 通知 Manager（通过节点数）
 ```
 
