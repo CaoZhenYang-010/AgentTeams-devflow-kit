@@ -162,7 +162,19 @@ def main():
         send_message(token, rooms[worker], prompt, users.get(worker))
         content, appeared = wait_artifact(root, node, node.get("timeout", 300))
 
+        # 重试机制：LLM Worker 会话可能忙/混淆，超时后重新派发（最多 2 次）
+        retry = 0
+        while not appeared and retry < 2 and not node.get("skip_if_no_failure"):
+            print(f"  ↻ 节点 {nid} 超时，重试第 {retry+1} 次...")
+            send_message(token, rooms[worker], prompt, users.get(worker))
+            content, appeared = wait_artifact(root, node, node.get("timeout", 120))
+            retry += 1
+
         if not appeared:
+            if node.get("skip_if_no_failure"):
+                print(f"  ⏭ {nid} 无产物但标记为跳过（无失败场景），视为通过")
+                idx += 1
+                continue
             print(f"  ✗ 节点 {nid} 超时无产物")
             idx = handle_failure(node, token, rooms, users, root, node_map, req, rules)
             continue

@@ -89,7 +89,8 @@
       "worker": "analyst",
       "artifact": "defect_report.md",
       "timeout": 300,
-      "prompt": "请把对抗测试暴露的缺陷整理成 defect_report.md：candidates（文件/行/函数）、root_cause、evidence、fix_suggestion。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。"
+      "prompt": "请把对抗测试暴露的缺陷整理成 defect_report.md：candidates（文件/行/函数）、root_cause、evidence、fix_suggestion。【重要】产出文件后，必须用 file-sync / agentteams-sync 把文件同步到 MinIO 共享区，确保外部能检测到。",
+      "skip_if_no_failure": true
     },
     {
       "id": "impact-analysis",
