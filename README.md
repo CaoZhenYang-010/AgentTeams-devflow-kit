@@ -4,7 +4,11 @@
 
 ## 一句话定位
 
-> 在 AgentTeams 上构建一支"AI 研发团队"，用 `run-pipeline.py` 一键驱动：`designer / implementer / tester / reviewer / analyst` 完成 **需求→设计→架构把关→编码→测试→对抗→缺陷定位→影响面→E2E→质量门禁→发布** 完整闭环，验证机制（真实测试、**JaCoCo 覆盖率**、对抗测试、缺陷定位、影响面分析）全部由确定性工具保证，而非模型自评。
+> 在 AgentTeams 上构建一支"AI 研发团队"，用 `run-pipeline.py` 一键驱动：`designer / implementer / tester / reviewer / analyst` 完成 **需求→设计→架构把关→编码→测试→对抗→缺陷定位→影响面→E2E→质量门禁→发布** 完整闭环，解决各岗位之间的协同问题。验证机制（真实测试、**JaCoCo 覆盖率**、对抗测试、缺陷定位、影响面分析）全部由确定性工具保证，而非模型自评，解决了当输出不可靠时，怎么工程化地保证质量的痛点问题。
+
+## 整体架构图
+
+![整体架构图](F:\Demo\GOAI\AgentTeams-devflow-kit\docs\整体架构图.png)
 
 ## 目录结构
 
