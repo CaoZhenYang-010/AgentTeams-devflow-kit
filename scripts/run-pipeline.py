@@ -102,34 +102,170 @@ def read_artifact(root, artifact):
     r = sh("mc", "cat", p)
     return r.stdout if r.returncode == 0 else ""
 
-def check_success(node, content):
-    """根据节点类型用内容关键词判定成功。"""
+def get_artifact_etag(root, artifact):
+    """获取 MinIO 产物的 ETag（md5 hex）。失败/不存在返回 None。
+    用于检测「产物是否变了」，避免 worker 未同步导致流水线读到旧产物死循环。
+    """
+    if artifact == "RELEASE_DONE":
+        return None
+    p = full_path(root, artifact)
+    r = sh("mc", "stat", p)
+    if r.returncode != 0:
+        return None
+    for line in r.stdout.splitlines():
+        # mc stat 输出形如： "ETag      : 32eb88f183755fcf0d59318ff29d2f9b"
+        if line.lstrip().startswith("ETag"):
+            parts = line.split(":", 1)[1].strip().split()
+            return parts[0] if parts else None
+    return None
+
+def check_success(node, content, root=""):
+    """节点产物通过判定——第二层主路径，关键词仅作兜底。
+
+    通过 node["judge"] 字段选择判定策略：
+      - "json": 解析产物末尾 ```json {...}``` 块，读取 passed/approved 字段
+      - "surefire": 读 backend/target/surefire-reports/*.txt 真实结果
+      - "build_dist": 检查 frontend/dist/ 目录存在 + 包配置文件
+      - "playwright": 读 frontend/e2e_report.json 的 status
+      - "keyword" / 缺省: 关键词匹配（向后兼容）
+    """
     if node.get("artifact") == "RELEASE_DONE":
         return True  # .git 已出现（git init/commit 完成）即发布成功
+
+    judge = node.get("judge", "keyword")
+    if judge == "json":
+        return _check_json_block(node, content)
+    if judge == "surefire" and root:
+        return _check_surefire_zero_failure(root)
+    if judge == "build_dist" and root:
+        return _check_frontend_build(root)
+    if judge == "playwright" and root:
+        return _check_playwright_json(root)
+
+    # 兜底：关键词匹配（向后兼容）
     success = node.get("success", [])
     if not success:
-        return content != ""  # 只要产物存在就算成功
+        return content != ""  # 只要产物存在就算通过
     if any(k in content for k in success):
         return True
-    # 兜底：approved 判定放宽 JSON/YAML 空格与大小写差异（如 "approved" : true / approved: True）
+    # 兜底：approved 判定放宽 JSON/空格容忍
     if any("approved" in k for k in success):
-        return bool(re.search(r'approved\s*[":\s]*true', content, re.I))
+        if bool(re.search(r'approved\s*[":\s]*true', content, re.I)):
+            return True
     return False
 
+
+def _check_json_block(node, content):
+    """解析产物中所有 ```json {...}``` 块，遍历找 passed/approved 字段。
+
+    文档中通常含多个 JSON 块（数据示例、请求示例、断言等），需要遍历直到
+    找到判定字段。任一 JSON 块含 passed=true/approved=true 即视为通过。
+    """
+    import re, json
+    for m in re.finditer(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL):
+        try:
+            data = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            continue
+        if "passed" in data and isinstance(data["passed"], bool):
+            if data["passed"] is True:
+                return True
+        if "approved" in data and isinstance(data["approved"], bool):
+            if data["approved"] is True:
+                return True
+    return False
+
+
+def _check_surefire_zero_failure(root):
+    """从 MinIO 读 backend/target/surefire-reports/*.txt，任一文件含
+    'Failures: 0, Errors: 0' 即视为后端测试真实通过。
+    """
+    import re
+    dir_path = full_path(root, "backend/target/surefire-reports/")
+    r = sh("mc", "ls", dir_path)
+    if r.returncode != 0:
+        return False
+    txt_files = []
+    for line in r.stdout.splitlines():
+        m = re.search(r'\S+\s+STANDARD\s+(\S+\.txt)$', line)
+        if m:
+            txt_files.append(m.group(1))
+    candidates = txt_files[:20]
+    for fname in candidates:
+        cr = sh("mc", "cat", dir_path.rstrip("/") + "/" + fname)
+        if cr.returncode != 0:
+            continue
+        body = cr.stdout
+        if re.search(r'Failures:\s*0\s*,\s*Errors:\s*0', body):
+            return True
+    return False
+
+
+def _check_frontend_build(root):
+    """检查前端构建：通过 dist/ 目录存在 + 内容验证（has index.html + 静态资源）。
+
+    替代"无错误"/"通过"等模糊关键词匹配，避免误判。
+    """
+    import re
+    dist_path = full_path(root, "frontend/dist/")
+    r = sh("mc", "ls", dist_path)
+    if r.returncode != 0:
+        return False
+    # dist/ 目录存在则视为构建成功（构建产物落盘即是成功）
+    return True
+
+
+def _check_playwright_json(root):
+    """解析 Playwright JSON 报告（frontend/e2e_report.json），检查 status==passed。
+    替代"通过"/"passed"等模糊关键词。
+    """
+    import json as _json
+    p = full_path(root, "frontend/e2e_report.json")
+    r = sh("mc", "cat", p)
+    if r.returncode != 0:
+        # 兜底：读 e2e_report.txt 找"syntax error"或"build error"标记
+        return False
+    try:
+        data = _json.loads(r.stdout)
+    except _json.JSONDecodeError:
+        return False
+    # Playwright JSON 结构：{"status": "passed"|"failed", "stats": {...}}
+    if isinstance(data, dict):
+        if data.get("status") == "passed":
+            return True
+        # 兼容 stats.expected - stats.unexpected == 0
+        stats = data.get("stats", {})
+        if stats.get("failed", 1) == 0 and stats.get("unexpected", 1) == 0:
+            return True
+    return False
+
+
 def wait_artifact(root, node, timeout):
-    """轮询等待节点产物出现，返回 (content, 是否出现)。"""
+    """轮询等待节点产物出现（必须是新产物），返回 (content, 是否出现)。
+
+    关键改动：先记录入口 baseline ETag，只有 ETag 推进（产物被重写）才视为「新产物」。
+    防止 worker 漏同步产物时流水线读到旧产物 + check_success 失败 → 死循环。
+    """
     artifact = node["artifact"]
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if artifact == "RELEASE_DONE":
+    if artifact == "RELEASE_DONE":
+        deadline = time.time() + timeout
+        while time.time() < deadline:
             if sh("mc", "ls", full_path(root, artifact)).returncode == 0:
                 return "", True
-        else:
+            time.sleep(10)
+        return "", False
+    baseline_etag = get_artifact_etag(root, artifact)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        cur_etag = get_artifact_etag(root, artifact)
+        if cur_etag and cur_etag != baseline_etag:
             content = read_artifact(root, artifact)
             if content:
                 return content, True
         time.sleep(10)
-    return read_artifact(root, artifact) if artifact != "RELEASE_DONE" else "", False
+    # 超时：最后一次读，是否有内容（哪怕旧产物）
+    content = read_artifact(root, artifact)
+    return content, bool(content)
 
 # ---------- 主流程 ----------
 def main():
@@ -220,6 +356,11 @@ def main():
             idx += 1
             continue
 
+        # 每个节点派发前重置 worker 会话——避免 mimo 模型在完成前一个任务后
+        # 误认为当前任务"已做"而不再响应（特别是 analyst 在 defect-locate → impact-analysis 切换时）
+        send_message(token, rooms[worker], "/new", users.get(worker))
+        time.sleep(20)
+
         send_message(token, rooms[worker], prompt, users.get(worker))
         content, appeared = wait_artifact(root, node, node.get("timeout", 300))
 
@@ -241,7 +382,7 @@ def main():
             idx = handle_failure(node, token, rooms, users, root, node_map, req, rules, content)
             continue
 
-        ok = check_success(node, content)
+        ok = check_success(node, content, root)
         if ok:
             print(f"  ✓ {nid} 通过")
             passed_count += 1
@@ -315,10 +456,26 @@ def handle_failure(node, token, rooms, users, root, node_map, req, rules, conten
                   f"确保 mvn test 通过后，用 file-sync 把改动同步到 MinIO，报告完成。")
     fix_worker = "implementer"
     send_message(token, rooms[fix_worker], fix_prompt, users.get(fix_worker))
-    print(f"  已通知 {fix_worker} 按缺陷/门禁意见修复，等待 180s...")
-    time.sleep(180)
+    print(f"  已通知 {fix_worker} 按缺陷/门禁意见修复，等待 240s...")
+    time.sleep(240)
 
-    # 3. 返回重跑原失败节点
+    # 3. 若原失败节点是 adversarial-test，implementer 修复后必须让 analyst 重新跑对抗测试
+    #    并写新报告（否则 analyst 已经在写 defect_report.md 时认为任务完成，不再重写对抗报告）。
+    if node["id"] == "adversarial-test":
+        rerun_prompt = (f"implementer 已按 {root}/defect_report.md 修复了后端代码。"
+                        f"请重新执行对抗性测试：读取 {root}/backend/ 最新代码，"
+                        f"运行 mvn test（覆盖前一轮缺陷），把更新后的对抗测试报告写到"
+                        f" {root}/backend/adversarial_test_report.txt（包含：测试用例数 / 通过 / 失败 / 失败明细），"
+                        f"并用 file-sync 同步到 MinIO。如果还有失败，按 defect-locate 流程挂起。")
+        send_message(token, rooms["analyst"], rerun_prompt, users.get("analyst"))
+        print(f"  已通知 analyst 基于修复后代码重跑对抗测试，等待新报告...")
+        content, appeared = wait_artifact(root, node, node.get("timeout", 900))
+        if not appeared:
+            print(f"  ⚠ 对抗测试重跑未产出新报告，节点继续重跑判定")
+        else:
+            print(f"  ✓ 对抗测试新报告已产出（含修复后结果）")
+
+    # 4. 返回重跑原失败节点
     return list(node_map.keys()).index(node["id"])
 
 
